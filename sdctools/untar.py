@@ -5,14 +5,22 @@ import boto3
 import datetime
 import random
 import botocore.exceptions
-
-from dateutil import parser
+import logging
 
 
 # entry point - Lambda should call this method
 def unbundle_pon(src_bucket_name, pon_key, dest_bucket_name, dest_prefix):
+
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s %(levelname)s %(message)s',
+                        filename='/Users/jeremypalmer/desktop/xampleeeeeeeeee.log',
+                        filemode='a')
+
+    logging.info('Start processing %s from %s' % (pon_key, src_bucket_name))
+
     # determine compression type as this impacts level of nesting in file
     file_ext = pon_key.split('.')[-1]
+    logging.info('file extension is %s' % file_ext)
 
     s3 = boto3.resource('s3')
     bucket = s3.Bucket(src_bucket_name)
@@ -26,11 +34,12 @@ def unbundle_pon(src_bucket_name, pon_key, dest_bucket_name, dest_prefix):
         __untar_pon(temp_tar, dest_bucket_name, dest_prefix)
 
     elif file_ext.upper() == 'GZ':
-        __extract_tars(pon_key)
+        __extract_tars(bucket, pon_key, dest_bucket_name, dest_prefix)
     else:
         raise ValueError('Invalid PON File Type')
 
-    return file_ext
+    logging.info('Finished processing %s from %s' % (pon_key, src_bucket_name))
+    return True
 
 
 # returns a filename for extracted PON data that does not already exist in S3
@@ -80,15 +89,23 @@ def upload_to_s3(bucket_name, key_name, file_contents):
         raise
 
 
-# extracts multiple TAR files from a high level TAR.GZ
-def __extract_tars(file_path):
-    return 'aardvark'
+# extracts multiple TAR files from a high level TAR.GZ and calls __untar_pon for each
+# TODO: complete the extraction logic & test
+def __extract_tars(bucket, pon_key, dest_bucket_name, dest_prefix):
+    parent_temp = tempfile.SpooledTemporaryFile()
+    bucket.download_fileobj(pon_key, parent_temp)
+    parent_tar = tarfile.open(name=None, mode='r', fileobj=parent_temp)
+
+    for tarinfo in parent_tar:
+        if tarinfo.isreg():
+            print(tarinfo.name())
 
 
 # takes a single .tar file and returns new fileobj(s) with normalised CSV data
 def __untar_pon(pon_tarfile, dest_bucket_name, dest_prefix):
     # make sure the prefix ends in forward slash
     if not dest_prefix.endswith('/'):
+        logging.info("Adding '/' to end of destination bucket prefix")
         dest_prefix = dest_prefix + '/'
 
     for info in pon_tarfile:
@@ -103,6 +120,7 @@ def __untar_pon(pon_tarfile, dest_bucket_name, dest_prefix):
             data_row = []
             data_rows = []
 
+            logging.info('Processing %s' % info.name)
             if info.name == 'iSAM_ponOltUtilTxOntHistoryData.csv':
                 file_type = 'ponOltUtilTxOntHistory'
             elif info.name == 'iSAM_ponOltUtilRxOntHistoryData.csv':
@@ -120,7 +138,7 @@ def __untar_pon(pon_tarfile, dest_bucket_name, dest_prefix):
             elif info.name == 'iSAM_ng2OntOltUtilBulkHistoryData.csv':
                 file_type = 'ng2OntOltUtilBulkHistory'
 
-            if file_type is not  None:
+            if file_type is not None:
                 for line in pon_tarfile.extractfile(info.name):
                     csv_line = csv.reader([line.decode('utf-8')], quotechar='"')
 
@@ -174,21 +192,11 @@ def __untar_pon(pon_tarfile, dest_bucket_name, dest_prefix):
                                                , bucket_name=dest_bucket_name
                                                , prefix=dest_prefix)
 
+                    logging.info('New S3 file name is %s' % outfile_key)
+
                     upload_to_s3(bucket_name=dest_bucket_name
                                  , key_name=outfile_key
                                  , file_contents=temp_outfile)
 
     return True
-
-
-# log processing details
-# accepts key word args:
-# log_application:          either s3 or dynamodb (mandatory)
-#
-def log_pon(**kwargs):
-    # set file output options
-    for arg in kwargs:
-        if arg == 'log_application':
-            log_application = kwargs[arg]
-
 

@@ -1,0 +1,9 @@
+README.txt
+setup.py
+sdctools/__init__.py
+sdctools/untar.py
+sdctools.egg-info/PKG-INFO
+sdctools.egg-info/SOURCES.txt
+sdctools.egg-info/dependency_links.txt
+sdctools.egg-info/requires.txt
+sdctools.egg-info/top_level.txt
