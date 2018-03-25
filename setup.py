@@ -7,14 +7,8 @@ setup(
     license='MIT',
     description='File utilities for SDC data',
     long_description=open('README.txt').read(),
-    install_requires=['tarfile'
-        ,'csv'
-        ,'dateutil'
-        ,'boto3'
-        ,'botocore'
-        ,'datetime'
-        ,'random'
-        ,'tempfile'],
+    install_requires=['boto3'
+        ,'botocore'],
     url='https://',
     author='Jeremy Palmer',
     author_email='jeremy.palmer@chorus.co.nz'
